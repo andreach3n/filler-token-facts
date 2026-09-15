@@ -1,8 +1,8 @@
 # Secrets
 .env
 
-# Generated pilot prompts and responses (rebuild with python -m fst.pilot build)
-data/runs/
+# Generated prompts are large and rebuildable (python -m fst.pilot build); responses are committed.
+data/runs/*/requests/
 
 __pycache__/
 .pytest_cache/

@@ -25,14 +25,14 @@ from fst.statements import DATA_DIR as STATEMENTS_DIR
 from fst.tasks import TASKS, make_split
 from fst.tokenization import n_tokens, n_tokens_after
 
-RUN_DIR = Path(__file__).resolve().parent.parent / "data" / "runs" / "pilot"
+RUNS_DIR = Path(__file__).resolve().parent.parent / "data" / "runs"
 MAX_TOKENS = 16
 
 # USD per million input/output tokens, looked up 2026-09-15 (Opus at Batch API rates). Re-check before big runs.
 PRICES = {
     "opus-4.5": (2.50, 12.50),
-    "deepseek-v4-flash": (0.081, 0.162),
-    "deepseek-v3-0324": (0.25, 1.00),
+    "deepseek-v4-flash": (0.14, 0.28),  # Parasail; output price assumed 2x input, not looked up
+    "deepseek-v3-0324": (0.29, 1.14),  # GMICloud
     "qwen3.6-27b": (0.30, 2.00),
 }
 TASK_ABBR = {"system_of_equations": "soe", "arithmetic": "arith", "variable_counting": "varcount"}
@@ -45,7 +45,7 @@ def _count_after_for(model: str):
     return lambda prefix, text: n_tokens_after(prefix, text, spec.tokenizer)
 
 
-def build(models: list[str], tasks: list[str], n_problems: int, shots: int, seed: int) -> None:
+def build(run_dir: Path, models: list[str], tasks: list[str], n_problems: int, shots: int, seed: int) -> None:
     sets = json.loads((STATEMENTS_DIR / "sets.json").read_text())
     for model in models:
         count_after = _count_after_for(model)
@@ -66,10 +66,10 @@ def build(models: list[str], tasks: list[str], n_problems: int, shots: int, seed
                         text = prompt["system"] + "".join(m["content"] for m in prompt["messages"])
                         input_tokens += n_tokens(text, MODELS[model].tokenizer)
 
-        out = RUN_DIR / "requests" / f"{model}.jsonl"
+        out = run_dir / "requests" / f"{model}.jsonl"
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in requests))
-        (RUN_DIR / "requests" / f"{model}.fillers.json").write_text(
+        (run_dir / "requests" / f"{model}.fillers.json").write_text(
             json.dumps([{"set": s["id"], **vars(f)} for s, f in zip(sets, fillers)], indent=1, ensure_ascii=False)
         )
 
@@ -86,16 +86,16 @@ def build(models: list[str], tasks: list[str], n_problems: int, shots: int, seed
             print(f"   {s['id']} filler tokens: {f.token_counts}")
 
 
-def run(models: list[str]) -> None:
+def run(run_dir: Path, models: list[str]) -> None:
     for model in models:
-        rows = [json.loads(line) for line in (RUN_DIR / "requests" / f"{model}.jsonl").read_text().splitlines()]
-        run_requests(MODELS[model], {r["id"]: r["prompt"] for r in rows}, MAX_TOKENS, RUN_DIR / "responses")
+        rows = [json.loads(line) for line in (run_dir / "requests" / f"{model}.jsonl").read_text().splitlines()]
+        run_requests(MODELS[model], {r["id"]: r["prompt"] for r in rows}, MAX_TOKENS, run_dir / "responses")
 
 
-def report(models: list[str]) -> None:
+def report(run_dir: Path, models: list[str]) -> None:
     for model in models:
-        requests_path = RUN_DIR / "requests" / f"{model}.jsonl"
-        responses_path = RUN_DIR / "responses" / f"{model}.jsonl"
+        requests_path = run_dir / "requests" / f"{model}.jsonl"
+        responses_path = run_dir / "responses" / f"{model}.jsonl"
         if not responses_path.exists():
             print(f"{model}: no responses yet")
             continue
@@ -148,13 +148,15 @@ def main() -> None:
     parser.add_argument("--n", type=int, default=150, help="problems per task")
     parser.add_argument("--shots", type=int, default=10)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--run", default="pilot", help="run name; each run keeps its own requests, responses and batch state")
     args = parser.parse_args()
+    run_dir = RUNS_DIR / args.run
     if args.command == "build":
-        build(args.models, args.tasks, args.n, args.shots, args.seed)
+        build(run_dir, args.models, args.tasks, args.n, args.shots, args.seed)
     elif args.command == "run":
-        run(args.models)
+        run(run_dir, args.models)
     else:
-        report(args.models)
+        report(run_dir, args.models)
 
 
 if __name__ == "__main__":

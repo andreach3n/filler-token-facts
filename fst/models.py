@@ -33,14 +33,19 @@ MODELS = {
     spec.name: spec
     for spec in [
         ModelSpec("opus-4.5", "anthropic", "claude-opus-4-5", tokenizer=None),
+        # One pinned fp8 host per model, no fallbacks: paired conditions must run on the same weights
+        # and kernels. Both hosts return logprobs for answer-probability scoring.
         # "DeepSeek V4 Flash 0423" on OpenRouter: the original checkpoint the J-lens was fitted on.
         ModelSpec(
             "deepseek-v4-flash", "openrouter", "deepseek/deepseek-v4-flash", "deepseek-v4-flash",
-            extra_body={"reasoning": {"enabled": False}, "provider": {"quantizations": ["fp8"]}},
+            extra_body={
+                "reasoning": {"enabled": False},
+                "provider": {"order": ["parasail/fp8"], "allow_fallbacks": False},
+            },
         ),
         ModelSpec(
             "deepseek-v3-0324", "openrouter", "deepseek/deepseek-chat-v3-0324", "deepseek-v3-0324",
-            extra_body={"provider": {"quantizations": ["fp8"]}},
+            extra_body={"provider": {"order": ["gmicloud/fp8"], "allow_fallbacks": False}},
         ),
         ModelSpec(
             "qwen3.6-27b", "openrouter", "qwen/qwen3.6-27b", "qwen3.6-27b",
