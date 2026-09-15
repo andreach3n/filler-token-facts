@@ -1,0 +1,57 @@
+{
+  "_comment": "Hand-curated from data/statements/candidates.jsonl (PopQA). Each entry is a sentence template with {obj}, the true object, and the relation whose same-kind pool supplies false objects. Excluded on purpose: facts PopQA gets wrong, titles shared by several works or remakes, co-credited works, and anything with numbers.",
+  "pools": {
+    "author": ["George Orwell", "Jane Austen", "Charles Dickens", "Mark Twain", "Leo Tolstoy", "Virginia Woolf", "Ernest Hemingway", "Franz Kafka", "Toni Morrison", "Stephen King", "Agatha Christie", "Herman Melville", "Oscar Wilde", "Victor Hugo", "William Shakespeare", "Harper Lee", "John Steinbeck", "Cormac McCarthy", "Mary Shelley", "Bram Stoker", "Lewis Carroll", "Kurt Vonnegut", "Margaret Atwood", "Jules Verne", "Aldous Huxley", "Ray Bradbury", "Sylvia Plath", "Roald Dahl", "Philip Roth", "Emily Brontë", "Upton Sinclair", "Shirley Jackson", "Robert Louis Stevenson", "Niccolò Machiavelli", "Thomas Hardy", "James Joyce", "Edgar Allan Poe"],
+    "composer": ["John Williams", "Hans Zimmer", "Ennio Morricone", "Howard Shore", "Danny Elfman", "James Horner", "Michael Giacchino", "Randy Newman", "Jerry Goldsmith", "Alan Menken", "Andrew Lloyd Webber", "Stephen Sondheim", "Lin-Manuel Miranda", "Gustav Holst", "Richard Wagner", "Giuseppe Verdi", "Giacomo Puccini", "Igor Stravinsky", "Vangelis", "Thomas Newman", "Bernard Herrmann", "Henry Mancini", "Richard Rodgers", "George Frideric Handel", "Johann Sebastian Bach", "Antonio Vivaldi", "Ludwig van Beethoven", "Pyotr Ilyich Tchaikovsky", "Claude Debussy", "Maurice Ravel", "Gustav Mahler", "Leonard Bernstein", "Philip Glass", "Max Steiner"],
+    "director": ["Steven Spielberg", "George Lucas", "Martin Scorsese", "Alfred Hitchcock", "Ridley Scott", "James Cameron", "Stanley Kubrick", "Christopher Nolan", "Quentin Tarantino", "Francis Ford Coppola", "Robert Zemeckis", "Tim Burton", "Orson Welles", "Woody Allen", "David Fincher", "Peter Jackson", "Wes Anderson", "Danny Boyle", "Luc Besson", "Guillermo del Toro", "Darren Aronofsky", "Spike Jonze", "Terry Gilliam", "Oliver Stone", "Clint Eastwood", "Sofia Coppola", "Kathryn Bigelow", "Akira Kurosawa", "Hayao Miyazaki", "Ron Howard", "Jon Favreau", "Paul Verhoeven", "Roland Emmerich", "Terrence Malick", "Denis Villeneuve", "David Lynch", "Sidney Lumet", "Billy Wilder", "John Carpenter"],
+    "sport": ["basketball", "baseball", "soccer", "tennis", "golf", "cricket", "volleyball", "rugby", "handball", "lacrosse", "badminton"]
+  },
+  "entries": [
+    {"relation": "author", "template": "The novel Nineteen Eighty-Four was written by {obj}.", "true_object": "George Orwell"},
+    {"relation": "author", "template": "{obj} wrote the novel Beloved.", "true_object": "Toni Morrison"},
+    {"relation": "author", "template": "The play King Lear was written by {obj}.", "true_object": "William Shakespeare"},
+    {"relation": "author", "template": "{obj} wrote the novel Great Expectations.", "true_object": "Charles Dickens"},
+    {"relation": "author", "template": "The novel Treasure Island was written by {obj}.", "true_object": "Robert Louis Stevenson"},
+    {"relation": "author", "template": "{obj} wrote the novel The Adventures of Tom Sawyer.", "true_object": "Mark Twain"},
+    {"relation": "author", "template": "The novel The Road was written by {obj}.", "true_object": "Cormac McCarthy"},
+    {"relation": "author", "template": "{obj} wrote the novel The Trial.", "true_object": "Franz Kafka"},
+    {"relation": "author", "template": "The novel Persuasion was written by {obj}.", "true_object": "Jane Austen"},
+    {"relation": "author", "template": "{obj} wrote the political treatise The Prince.", "true_object": "Niccolò Machiavelli"},
+    {"relation": "author", "template": "The novel The Jungle was written by {obj}.", "true_object": "Upton Sinclair"},
+    {"relation": "author", "template": "{obj} wrote the short story The Lottery.", "true_object": "Shirley Jackson"},
+
+    {"relation": "composer", "template": "The music for the musical Hamilton was composed by {obj}.", "true_object": "Lin-Manuel Miranda"},
+    {"relation": "composer", "template": "{obj} composed the orchestral suite The Planets.", "true_object": "Gustav Holst"},
+    {"relation": "composer", "template": "The oratorio Messiah was composed by {obj}.", "true_object": "George Frideric Handel"},
+    {"relation": "composer", "template": "{obj} composed the opera Götterdämmerung.", "true_object": "Richard Wagner"},
+    {"relation": "composer", "template": "The score for the film Toy Story was composed by {obj}.", "true_object": "Randy Newman"},
+    {"relation": "composer", "template": "{obj} composed the score for the film Chariots of Fire.", "true_object": "Vangelis"},
+    {"relation": "composer", "template": "The score for the film The Mission was composed by {obj}.", "true_object": "Ennio Morricone"},
+    {"relation": "composer", "template": "{obj} composed the music for the musical Company.", "true_object": "Stephen Sondheim"},
+    {"relation": "composer", "template": "The music for the musical The King and I was composed by {obj}.", "true_object": "Richard Rodgers"},
+    {"relation": "composer", "template": "{obj} composed the music for the musical Cats.", "true_object": "Andrew Lloyd Webber"},
+    {"relation": "composer", "template": "The score for the Pixar film Up was composed by {obj}.", "true_object": "Michael Giacchino"},
+
+    {"relation": "director", "template": "The film Star Wars was directed by {obj}.", "true_object": "George Lucas"},
+    {"relation": "director", "template": "{obj} directed the film Back to the Future.", "true_object": "Robert Zemeckis"},
+    {"relation": "director", "template": "The film Alien was directed by {obj}.", "true_object": "Ridley Scott"},
+    {"relation": "director", "template": "{obj} directed the film Citizen Kane.", "true_object": "Orson Welles"},
+    {"relation": "director", "template": "The film Iron Man was directed by {obj}.", "true_object": "Jon Favreau"},
+    {"relation": "director", "template": "{obj} directed the film The Birds.", "true_object": "Alfred Hitchcock"},
+    {"relation": "director", "template": "The film Independence Day was directed by {obj}.", "true_object": "Roland Emmerich"},
+    {"relation": "director", "template": "{obj} directed the film Casino.", "true_object": "Martin Scorsese"},
+    {"relation": "director", "template": "The film Lincoln was directed by {obj}.", "true_object": "Steven Spielberg"},
+    {"relation": "director", "template": "{obj} directed the film Brazil.", "true_object": "Terry Gilliam"},
+    {"relation": "director", "template": "The film The Matrix was directed by {obj}.", "true_object": "The Wachowskis"},
+    {"relation": "director", "template": "{obj} directed the film The Wrestler.", "true_object": "Darren Aronofsky"},
+
+    {"relation": "sport", "template": "Jason Kidd was a professional {obj} player.", "true_object": "basketball"},
+    {"relation": "sport", "template": "Bryce Harper is a professional {obj} player.", "true_object": "baseball"},
+    {"relation": "sport", "template": "The Pittsburgh Penguins are a professional {obj} team.", "true_object": "ice hockey"},
+    {"relation": "sport", "template": "The St. Louis Cardinals are a professional {obj} team.", "true_object": "baseball"},
+    {"relation": "sport", "template": "James Rodríguez is a professional {obj} player.", "true_object": "soccer"},
+    {"relation": "sport", "template": "Jerry West was a professional {obj} player.", "true_object": "basketball"},
+    {"relation": "sport", "template": "Atlético de Madrid is a professional {obj} club.", "true_object": "soccer"},
+    {"relation": "sport", "template": "The Los Angeles Galaxy is a professional {obj} club.", "true_object": "soccer"}
+  ]
+}

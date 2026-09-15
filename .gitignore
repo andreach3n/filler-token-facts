@@ -1,0 +1,9 @@
+# Secrets
+.env
+
+# Generated pilot prompts and responses (rebuild with python -m fst.pilot build)
+data/runs/
+
+__pycache__/
+.pytest_cache/
+.DS_Store

@@ -1,0 +1,9 @@
+anthropic>=0.111
+openai>=2.45
+tokenizers>=0.22
+datasets>=4.8
+pandas>=3.0
+scipy>=1.17
+certifi
+python-dotenv>=1.0
+pytest>=9.0
