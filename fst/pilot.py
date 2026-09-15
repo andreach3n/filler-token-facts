@@ -1,8 +1,10 @@
-"""Behavioral pilot: core conditions x tasks x problems x models, via API.
+"""Behavioral runs: conditions x tasks x problems x models, via API.
 
 Design: each problem is assigned to one statement set (problem i -> set i % n_sets) and run under
-every core condition with that set's fillers, so conditions are compared on identical problems.
-Few-shot examples are fixed per task and carry the same filler as the target.
+every condition with that set's fillers, so conditions are compared on identical problems.
+Conditions are no filler plus counting/false/true filler at each requested placement
+(--placements after before middle). Few-shot examples are fixed per task and carry the same
+filler, in the same place, as the target.
 
   python -m fst.pilot build   # write prompts, print token and cost estimates (no API spend
                               #   except free Anthropic token counting for Opus filler lengths)
@@ -20,7 +22,7 @@ from pathlib import Path
 from scipy.stats import binomtest
 
 from fst.models import MODELS, anthropic_count_after, parse_int_answer, run_requests
-from fst.prompts import CORE_CONDITIONS, build_prompt, matched_fillers
+from fst.prompts import FILLER_KINDS, build_prompt, condition_name, matched_fillers, soe_chain_position
 from fst.statements import DATA_DIR as STATEMENTS_DIR
 from fst.tasks import TASKS, make_split
 from fst.tokenization import n_tokens, n_tokens_after
@@ -45,7 +47,7 @@ def _count_after_for(model: str):
     return lambda prefix, text: n_tokens_after(prefix, text, spec.tokenizer)
 
 
-def build(run_dir: Path, models: list[str], tasks: list[str], n_problems: int, shots: int, seed: int) -> None:
+def build(run_dir: Path, models: list[str], tasks: list[str], placements: list[str], n_problems: int, shots: int, seed: int) -> None:
     sets = json.loads((STATEMENTS_DIR / "sets.json").read_text())
     for model in models:
         count_after = _count_after_for(model)
@@ -55,11 +57,15 @@ def build(run_dir: Path, models: list[str], tasks: list[str], n_problems: int, s
             fewshot, problems = make_split(task, n_problems, shots, seed)
             for i, problem in enumerate(problems):
                 set_index = i % len(sets)
-                for condition in CORE_CONDITIONS:
-                    prompt = build_prompt(problem, fewshot, fillers[set_index].fillers[condition])
+                cells = [("none", "after")] + [(kind, pl) for pl in placements for kind in FILLER_KINDS]
+                for kind, placement in cells:
+                    if placement == "middle" and task != "system_of_equations":
+                        continue
+                    condition = condition_name(kind, placement)
+                    prompt = build_prompt(problem, fewshot, fillers[set_index].fillers[kind], placement)
                     requests.append({
                         "id": f"{TASK_ABBR[task]}-{condition}-{i:03d}",
-                        "task": task, "condition": condition, "set": sets[set_index]["id"],
+                        "task": task, "condition": condition, "placement": placement, "set": sets[set_index]["id"],
                         "problem_id": problem.id, "answer": problem.answer, "prompt": prompt,
                     })
                     if MODELS[model].tokenizer:
@@ -92,6 +98,14 @@ def run(run_dir: Path, models: list[str]) -> None:
         run_requests(MODELS[model], {r["id"]: r["prompt"] for r in rows}, MAX_TOKENS, run_dir / "responses")
 
 
+def _mcnemar(cells: dict, base: dict) -> str:
+    shared = cells.keys() & base.keys()
+    gained = sum(cells[k] and not base[k] for k in shared)
+    lost = sum(base[k] and not cells[k] for k in shared)
+    p = binomtest(gained, gained + lost).pvalue if gained + lost else 1.0
+    return f"vs none {(gained - lost) / len(shared):+6.1%}  (+{gained}/-{lost}, McNemar p={p:.3f})"
+
+
 def report(run_dir: Path, models: list[str]) -> None:
     for model in models:
         requests_path = run_dir / "requests" / f"{model}.jsonl"
@@ -105,39 +119,57 @@ def report(run_dir: Path, models: list[str]) -> None:
             responses[row["id"]] = row["result"]
 
         correct = defaultdict(dict)  # (task, condition) -> {problem index: bool}
-        unparsed = defaultdict(int)
-        hosts = defaultdict(int)
+        order: dict[str, list[str]] = defaultdict(list)
+        unparsed, hosts, missing = defaultdict(int), defaultdict(int), 0
+        chain = {}  # problem index -> chain position (systems of equations)
         for line in requests_path.read_text().splitlines():
             r = json.loads(line)
+            index = r["id"].rsplit("-", 1)[1]
+            if r["condition"] not in order[r["task"]]:
+                order[r["task"]].append(r["condition"])
+            if r["task"] == "system_of_equations" and index not in chain:
+                target = r["prompt"]["messages"][-1]["content"]
+                problem_text = target.split("\n\nAnswer:")[0] if r["condition"] == "none" else None
+                if problem_text:
+                    chain[index] = soe_chain_position(problem_text)
             result = responses.get(r["id"])
             if result is None or "error" in result:
+                missing += 1
                 continue
             predicted = parse_int_answer(result["text"])
             if predicted is None:
                 unparsed[(r["task"], r["condition"])] += 1
             hosts[result.get("host")] += 1
-            correct[(r["task"], r["condition"])][r["id"].rsplit("-", 1)[1]] = predicted == r["answer"]
+            correct[(r["task"], r["condition"])][index] = predicted == r["answer"]
 
-        print(f"\n== {model}  (hosts: {dict(hosts)})")
+        print(f"\n== {model}  (hosts: {dict(hosts)}, missing or errored: {missing})")
         for task in TASKS:
             base = correct.get((task, "none"))
             if not base:
                 continue
             print(f"  {task}")
-            for condition in CORE_CONDITIONS:
+            for condition in order[task]:
                 cells = correct.get((task, condition), {})
                 if not cells:
                     continue
                 acc = sum(cells.values()) / len(cells)
-                line = f"    {condition:9s} acc {acc:6.1%}  (n={len(cells)}, unparsed={unparsed[(task, condition)]})"
+                line = f"    {condition:17s} acc {acc:6.1%}  (n={len(cells)}, unparsed={unparsed[(task, condition)]})"
                 if condition != "none":
-                    shared = cells.keys() & base.keys()
-                    gained = sum(cells[k] and not base[k] for k in shared)
-                    lost = sum(base[k] and not cells[k] for k in shared)
-                    p = binomtest(gained, gained + lost).pvalue if gained + lost else 1.0
-                    delta = (gained - lost) / len(shared)
-                    line += f"  vs none {delta:+6.1%}  (+{gained}/-{lost}, McNemar p={p:.3f})"
+                    line += "  " + _mcnemar(cells, base)
                 print(line)
+
+            middle = [c for c in order[task] if c.endswith("-middle")]
+            if middle and chain:
+                print("    middle placement, split by where the queried chain sits relative to the filler:")
+                for position in ("x,y before", "x before, y after", "x,y after"):
+                    keys = {k for k, v in chain.items() if v == position}
+                    sub_base = {k: v for k, v in base.items() if k in keys}
+                    if not sub_base:
+                        continue
+                    print(f"      {position} (n={len(sub_base)}): none acc {sum(sub_base.values()) / len(sub_base):.1%}")
+                    for condition in middle:
+                        cells = {k: v for k, v in correct[(task, condition)].items() if k in keys}
+                        print(f"        {condition:17s} acc {sum(cells.values()) / len(cells):6.1%}  " + _mcnemar(cells, sub_base))
 
 
 def main() -> None:
@@ -145,6 +177,7 @@ def main() -> None:
     parser.add_argument("command", choices=["build", "run", "report"])
     parser.add_argument("--models", nargs="+", default=list(MODELS))
     parser.add_argument("--tasks", nargs="+", default=list(TASKS))
+    parser.add_argument("--placements", nargs="+", default=["after"], choices=["after", "before", "middle"])
     parser.add_argument("--n", type=int, default=150, help="problems per task")
     parser.add_argument("--shots", type=int, default=10)
     parser.add_argument("--seed", type=int, default=0)
@@ -152,7 +185,7 @@ def main() -> None:
     args = parser.parse_args()
     run_dir = RUNS_DIR / args.run
     if args.command == "build":
-        build(run_dir, args.models, args.tasks, args.n, args.shots, args.seed)
+        build(run_dir, args.models, args.tasks, args.placements, args.n, args.shots, args.seed)
     elif args.command == "run":
         run(run_dir, args.models)
     else:

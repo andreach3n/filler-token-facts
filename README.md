@@ -33,6 +33,27 @@ python -m fst.pilot report         # accuracy, paired differences vs. none (McNe
 pytest
 ```
 
+## Results so far
+
+Systems of equations, 300 problems, 10-shot, via OpenRouter (`python -m fst.pilot report --run soe300`).
+Accuracy by condition; the change vs. no filler is paired over the same problems.
+
+| Condition | V4 Flash | V3-0324 |
+|---|---|---|
+| none | 52.0% | 33.3% |
+| counting (after question) | 69.3% (+17.3) | 56.0% (+22.7) |
+| **false (after question)** | **69.3% (+17.3)** | **53.7% (+20.3)** |
+| true (after question) | 68.7% (+16.7) | 54.7% (+21.3) |
+| counting / false / true, before the problem | 47.7 / 43.0 / 43.0% | 25.3 / 22.7 / 23.7% |
+| counting / false / true, mid-definitions | 48.7 / 47.3 / 45.3% | 27.3 / 28.7 / 27.0% |
+
+- False statements help as much as counting filler. The false-minus-counting difference is +0.0% for V4 Flash (95% CI -3.9 to +3.9) and -2.3% for V3 (-7.2 to +2.5).
+- Truth value makes no detectable difference.
+- The gain requires filler after the question. Before the problem it hurts, as paper 1 found for "before". Mid-definitions it doesn't help even when both chain variables precede the filler.
+- V3 reproduces paper 1's counting-filler gain.
+- V4 Flash sometimes ends its reply immediately with no answer. This happens in 10 of 300 no-filler prompts and a few mid-definition prompts; those replies are scored as wrong. Excluding them, the after-question gains are +16.6% (CI +11.5 to +21.6).
+- In the 150-problem pilot, arithmetic showed no gain on either model, and variable counting was at ceiling on V4 Flash and hurt by all fillers on V3.
+
 ## Design decisions
 
 - **Placement** follows paper 1: filler sits in the user turn after the question under a `Filler:` label, and every few-shot example carries the same filler. No assistant prefill.
