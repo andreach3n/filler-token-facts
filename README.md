@@ -54,6 +54,42 @@ Accuracy by condition; the change vs. no filler is paired over the same problems
 - V4 Flash sometimes ends its reply immediately with no answer. This happens in 10 of 300 no-filler prompts and a few mid-definition prompts; those replies are scored as wrong. Excluding them, the after-question gains are +16.6% (CI +11.5 to +21.6).
 - In the 150-problem pilot, arithmetic showed no gain on either model, and variable counting was at ceiling on V4 Flash and hurt by all fillers on V3.
 
+## Interpretability results (DeepSeek V4 Flash, 2x RTX PRO 6000)
+
+Hidden states were extracted at every layer for the filler positions of all 1,200 prompts of the
+300-problem run (`gpu/extract_states.py`), read out with the logit lens, J-lens and R-lens using
+paper 1's cross-example mean subtraction (`gpu/lens_readout.py`, `gpu/aggregate.py`), and tested
+causally by activation patching (`gpu/patch_filler.py`). Raw artifacts are in the private HF dataset
+`andreayhchen/filler-token-facts-states`; summaries are in `results/gpu/`.
+
+**Decoding.** Logit lens, correct answers only: fraction of prompts where the target is the top-1
+residual token at some filler position (best layer), with chance in parentheses.
+
+| Filler | x (given) | y | 2y | answer |
+|---|---|---|---|---|
+| counting | 0.99 (0.09) | 1.00 (0.08) | 0.91 (0.04) | 0.92 (0.06) |
+| false statements | 0.53 (0.01) | 0.96 (0.01) | 0.82 (0.01) | 0.88 (0.01) |
+| true statements | 0.57 (0.01) | 0.96 (0.03) | 0.88 (0.01) | 0.89 (0.01) |
+
+y, 2y and the answer never appear in the prompt. They peak at layers 35, 35-37 and 39. On incorrect
+answers y is still decodable (0.97) but the answer only 0.26. With filler, intermediates at the answer
+position drop (y: 0.32 without filler -> 0.13), consistent with the work moving into the filler.
+
+**Causal test.** Prompt A's filler-position residuals replaced by another problem B's (n=100 per cell):
+
+| Filler | Layers patched | p(A's answer) | p(B's answer) | greedy = B |
+|---|---|---|---|---|
+| false statements | all | 0.93 -> 0.01 | 0.74 | 85% |
+| false statements | late (30-42) | 0.93 -> 0.13 | 0.69 | 77% |
+| false statements | early (0-20) | 0.93 -> 0.58 | 0.00 | 0% |
+| counting | all | 0.90 -> 0.05 | 0.63 | 73% |
+| counting | late | 0.90 -> 0.18 | 0.56 | 64% |
+| counting | early | 0.90 -> 0.67 | 0.00 | 0% |
+
+Self-patching leaves everything unchanged. The answer position reads its result from the late-layer
+states at the statement positions; false statements are used as a computational substrate the same
+way counting filler is.
+
 ## Design decisions
 
 - **Placement** follows paper 1: filler sits in the user turn after the question under a `Filler:` label, and every few-shot example carries the same filler. No assistant prefill.
