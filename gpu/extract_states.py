@@ -105,7 +105,9 @@ for n, spec in enumerate(prompts):
         skipped += 1
         continue
     # disk_usage() reports the whole shared cluster; the quota applies to our own directory.
-    used_gb = int(subprocess.check_output(["du", "-sb", "/workspace"]).split()[0]) / 1e9
+    # du exits 1 if a file vanishes mid-scan (the uploader refreshes hardlinks), so don't check=True.
+    du = subprocess.run(["du", "-sb", "/workspace"], capture_output=True, text=True).stdout.split()
+    used_gb = int(du[0]) / 1e9 if du else 0.0
     if used_gb > MAX_WORKSPACE_GB:  # both ranks see the same number, so both stop
         log(f"STOP: /workspace usage {used_gb:.1f} GB is above {MAX_WORKSPACE_GB} GB")
         break
