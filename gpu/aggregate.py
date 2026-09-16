@@ -63,7 +63,7 @@ def decoding_rates(rows, lens, k, role, correct_only):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--readouts", type=Path, default=Path("/workspace/readouts"))
+    parser.add_argument("--readouts", type=Path, default=Path("/root/readouts"))
     parser.add_argument("--out", type=Path, default=Path("results/gpu"))
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)

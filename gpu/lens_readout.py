@@ -31,13 +31,13 @@ from pathlib import Path
 import numpy as np
 import torch
 
-STATES = Path("/workspace/states")
-OUT = Path("/workspace/readouts")
-HEAD = Path("/workspace/head.pt")
+STATES = [Path("/workspace/states"), Path("/root/states2")]  # the volume quota filled mid-run; later files are local
+OUT = Path("/root/readouts")
+HEAD = Path("/root/head.pt")
 LENSES = {
     "logit": None,
-    "jlens": Path("/workspace/lens/deepseek-v4-flash/j-lens/lens.pt"),
-    "rlens": Path("/workspace/lens/deepseek-v4-flash/r-lens/lens.pt"),
+    "jlens": Path("/root/lens/deepseek-v4-flash/j-lens/lens.pt"),
+    "rlens": Path("/root/lens/deepseek-v4-flash/r-lens/lens.pt"),
 }
 TARGETS = ("x", "c1x", "y", "c2y", "answer")
 TOPK = 10
@@ -99,7 +99,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     tok = load_tokenizer()
 
-    files = sorted(STATES.glob("*.npz"))
+    files = sorted(f for d in STATES for f in d.glob("*.npz"))
     groups = defaultdict(list)
     for f in files:
         meta = json.loads(str(np.load(f)["meta"]))

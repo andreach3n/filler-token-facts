@@ -15,7 +15,7 @@ Resumable: prompts with an existing output file are skipped.
 
 import json
 import os
-import subprocess
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -28,10 +28,12 @@ INF = "/dev/shm/models/DeepSeek-V4-Flash/inference"
 ENC = "/dev/shm/models/DeepSeek-V4-Flash/encoding"
 CKPT = "/dev/shm/models/V4F-mp2"
 PROMPTS = Path("/workspace/gpu_prompts_soe300.jsonl")
-OUT = Path("/workspace/states")
+DONE_DIRS = [Path("/workspace/states"), Path("/root/states2")]  # the volume quota (~27 GB) filled; new files go local
+OUT = DONE_DIRS[-1]
+HEARTBEAT = Path("/root/heartbeat")  # rewritten after every prompt; monitor.sh watches its age
 KEEP_LAST = 4          # positions at the end of the prompt (the answer is predicted at the last one)
 FIRST_LAYER = 0        # store block outputs from this layer on (all 43)
-MAX_WORKSPACE_GB = 44  # the volume quota is ~50 GB; stop before hitting it
+MAX_LOCAL_GB = 27  # root disk is 30 GB
 sys.path[:0] = [INF, ENC]
 from model import Transformer, ModelArgs  # noqa: E402
 from encoding_dsv4 import encode_messages  # noqa: E402
@@ -58,6 +60,8 @@ torch.set_default_device("cuda")
 tok = AutoTokenizer.from_pretrained(CKPT)
 n_layers = len(model.layers)
 log(f"model loaded; {n_layers} layers")
+if rank == 0:
+    HEARTBEAT.write_text(json.dumps({"time": time.time(), "status": "model loaded"}))
 
 # --- capture: merge the 4 streams at the chosen positions inside the hook ----------------------
 capture = {"positions": None, "states": {}}
@@ -101,15 +105,13 @@ done = skipped = 0
 t_start = time.time()
 for n, spec in enumerate(prompts):
     out_path = OUT / f"{spec['id']}.npz"
-    if out_path.exists():
+    if any((d / out_path.name).exists() for d in DONE_DIRS):
         skipped += 1
         continue
     # disk_usage() reports the whole shared cluster; the quota applies to our own directory.
-    # du exits 1 if a file vanishes mid-scan (the uploader refreshes hardlinks), so don't check=True.
-    du = subprocess.run(["du", "-sb", "/workspace"], capture_output=True, text=True).stdout.split()
-    used_gb = int(du[0]) / 1e9 if du else 0.0
-    if used_gb > MAX_WORKSPACE_GB:  # both ranks see the same number, so both stop
-        log(f"STOP: /workspace usage {used_gb:.1f} GB is above {MAX_WORKSPACE_GB} GB")
+    used_gb = shutil.disk_usage("/root").used / 1e9  # local disk, so this is our own usage
+    if used_gb > MAX_LOCAL_GB:  # both ranks see the same number, so both stop
+        log(f"STOP: root disk usage {used_gb:.1f} GB is above {MAX_LOCAL_GB} GB")
         break
 
     messages = [{"role": "system", "content": spec["system"]}] + spec["messages"]
@@ -131,8 +133,9 @@ for n, spec in enumerate(prompts):
     greedy = tok.decode([int(top.indices[0])])
     if rank == 0:
         states = torch.stack([capture["states"][l] for l in range(FIRST_LAYER, n_layers)])  # [L, P, d]
+        tmp_path = out_path.with_suffix(".tmp.npz")
         np.savez(
-            out_path,
+            tmp_path,
             states=states.numpy(),
             positions=np.array(positions, dtype=np.int32),
             n_filler=np.int32(len(filler_pos)),
@@ -147,8 +150,11 @@ for n, spec in enumerate(prompts):
             intermediates=np.array(json.dumps(spec["intermediates"])),
             meta=np.array(json.dumps({k: spec[k] for k in ("id", "condition", "set", "problem_id", "api_reply")})),
         )
+        os.replace(tmp_path, out_path)  # atomic: no partial files for the uploader to catch
     done += 1
     elapsed = time.time() - t_start
+    if rank == 0:
+        HEARTBEAT.write_text(json.dumps({"time": time.time(), "status": "running", "prompt": n + 1, "of": len(prompts), "last": spec["id"]}))
     log(f"[{n + 1}/{len(prompts)}] {spec['id']:22s} tokens={len(ids):5d} filler={len(filler_pos):3d} "
         f"greedy={greedy!r:8s} gold={spec['answer']:<4d} api={spec['api_reply']!r:8s} "
         f"p(ans)={probs[a_id].item() if a_id is not None else float('nan'):.3f} "
