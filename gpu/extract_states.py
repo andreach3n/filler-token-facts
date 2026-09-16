@@ -15,7 +15,7 @@ Resumable: prompts with an existing output file are skipped.
 
 import json
 import os
-import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -104,8 +104,10 @@ for n, spec in enumerate(prompts):
     if out_path.exists():
         skipped += 1
         continue
-    if rank == 0 and shutil.disk_usage("/workspace").used / 1e9 > MAX_WORKSPACE_GB:
-        log(f"STOP: /workspace usage above {MAX_WORKSPACE_GB} GB")
+    # disk_usage() reports the whole shared cluster; the quota applies to our own directory.
+    used_gb = int(subprocess.check_output(["du", "-sb", "/workspace"]).split()[0]) / 1e9
+    if used_gb > MAX_WORKSPACE_GB:  # both ranks see the same number, so both stop
+        log(f"STOP: /workspace usage {used_gb:.1f} GB is above {MAX_WORKSPACE_GB} GB")
         break
 
     messages = [{"role": "system", "content": spec["system"]}] + spec["messages"]
@@ -137,7 +139,7 @@ for n, spec in enumerate(prompts):
             answer=np.int32(spec["answer"]),
             answer_token_id=np.int32(-1 if a_id is None else a_id),
             answer_prob=np.float32(probs[a_id].item() if a_id is not None else float("nan")),
-            greedy_token_id=np.int32(top.indices[0]),
+            greedy_token_id=np.int32(int(top.indices[0])),
             top10_ids=top.indices.cpu().numpy().astype(np.int32),
             top10_probs=top.values.cpu().numpy().astype(np.float32),
             intermediates=np.array(json.dumps(spec["intermediates"])),
