@@ -22,7 +22,7 @@ from pathlib import Path
 from scipy.stats import binomtest
 
 from fst.models import MODELS, anthropic_count_after, parse_int_answer, run_requests
-from fst.prompts import FILLER_KINDS, build_prompt, condition_name, matched_fillers, soe_chain_position
+from fst.prompts import FILLER_KINDS, build_prompt, build_prompt_per_shot, condition_name, matched_fillers, soe_chain_position
 from fst.statements import DATA_DIR as STATEMENTS_DIR
 from fst.tasks import TASKS, make_split
 from fst.tokenization import n_tokens, n_tokens_after
@@ -47,8 +47,11 @@ def _count_after_for(model: str):
     return lambda prefix, text: n_tokens_after(prefix, text, spec.tokenizer)
 
 
-def build(run_dir: Path, models: list[str], tasks: list[str], placements: list[str], n_problems: int, shots: int, seed: int) -> None:
-    sets = json.loads((STATEMENTS_DIR / "sets.json").read_text())
+def build(run_dir: Path, models: list[str], tasks: list[str], placements: list[str], n_problems: int, shots: int, seed: int,
+          sets_file: str = "sets.json", unique: bool = False) -> None:
+    sets = json.loads((STATEMENTS_DIR / sets_file).read_text())
+    if unique:
+        assert shots < len(sets), "unique mode needs one statement set per shot plus one for the target"
     for model in models:
         count_after = _count_after_for(model)
         fillers = [matched_fillers(s["pairs"], count_after) for s in sets]
@@ -71,6 +74,22 @@ def build(run_dir: Path, models: list[str], tasks: list[str], placements: list[s
                     if MODELS[model].tokenizer:
                         text = prompt["system"] + "".join(m["content"] for m in prompt["messages"])
                         input_tokens += n_tokens(text, MODELS[model].tokenizer)
+                if unique:
+                    # Each shot gets a different set; the target's statements appear once in the context.
+                    shot_sets = [(set_index + 1 + k) % len(sets) for k in range(shots)]
+                    for kind in ("false", "true"):
+                        condition = f"{kind}-unique"
+                        prompt = build_prompt_per_shot(problem, fewshot, [fillers[j].fillers[kind] for j in shot_sets],
+                                                       fillers[set_index].fillers[kind])
+                        requests.append({
+                            "id": f"{TASK_ABBR[task]}-{condition}-{i:03d}",
+                            "task": task, "condition": condition, "placement": "after", "set": sets[set_index]["id"],
+                            "shot_sets": [sets[j]["id"] for j in shot_sets],
+                            "problem_id": problem.id, "answer": problem.answer, "prompt": prompt,
+                        })
+                        if MODELS[model].tokenizer:
+                            text = prompt["system"] + "".join(m["content"] for m in prompt["messages"])
+                            input_tokens += n_tokens(text, MODELS[model].tokenizer)
 
         out = run_dir / "requests" / f"{model}.jsonl"
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -182,10 +201,12 @@ def main() -> None:
     parser.add_argument("--shots", type=int, default=10)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--run", default="pilot", help="run name; each run keeps its own requests, responses and batch state")
+    parser.add_argument("--sets", default="sets.json", help="statement sets file in data/statements/")
+    parser.add_argument("--unique", action="store_true", help="add false-unique/true-unique conditions: a different set per shot")
     args = parser.parse_args()
     run_dir = RUNS_DIR / args.run
     if args.command == "build":
-        build(run_dir, args.models, args.tasks, args.placements, args.n, args.shots, args.seed)
+        build(run_dir, args.models, args.tasks, args.placements, args.n, args.shots, args.seed, args.sets, args.unique)
     elif args.command == "run":
         run(run_dir, args.models)
     else:

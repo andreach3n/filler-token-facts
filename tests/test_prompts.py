@@ -1,4 +1,4 @@
-from fst.prompts import FILLER_PREFIX, build_prompt, counting_filler, matched_fillers, soe_chain_position, user_turn
+from fst.prompts import FILLER_PREFIX, build_prompt, build_prompt_per_shot, counting_filler, matched_fillers, soe_chain_position, user_turn
 from fst.tasks import SYSTEM_PROMPTS, make_split
 
 PAIRS = [
@@ -71,3 +71,10 @@ def test_chain_position_matches_definition_order():
         expected = (names.index(x) < 3, names.index(y) < 3)
         assert position == {(True, True): "x,y before", (True, False): "x before, y after", (False, False): "x,y after"}[expected]
     assert seen == {"x,y before", "x before, y after", "x,y after"}
+
+
+def test_per_shot_fillers_land_in_their_own_turns():
+    fewshot, problems = make_split("system_of_equations", 1, 3, seed=0)
+    prompt = build_prompt_per_shot(problems[0], fewshot, ["S1", "S2", "S3"], "T")
+    user_turns = [m["content"] for m in prompt["messages"] if m["role"] == "user"]
+    assert [t.split("Filler: ")[1].split("\n")[0] for t in user_turns] == ["S1", "S2", "S3", "T"]

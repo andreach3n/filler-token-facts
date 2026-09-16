@@ -66,6 +66,19 @@ def build_prompt(problem: Problem, fewshot: list[Problem], filler: str | None, p
     return {"system": SYSTEM_PROMPTS[problem.task], "messages": messages}
 
 
+def build_prompt_per_shot(problem: Problem, fewshot: list[Problem], shot_fillers: list[str | None],
+                          target_filler: str | None, placement: str = "after") -> dict:
+    """Like build_prompt, but each few-shot example carries its own filler (e.g. a different
+    statement set per shot, so the target's statements appear only once in the context)."""
+    assert len(shot_fillers) == len(fewshot)
+    messages = []
+    for example, filler in zip(fewshot, shot_fillers):
+        messages.append({"role": "user", "content": user_turn(example, filler, placement)})
+        messages.append({"role": "assistant", "content": str(example.answer)})
+    messages.append({"role": "user", "content": user_turn(problem, target_filler, placement)})
+    return {"system": SYSTEM_PROMPTS[problem.task], "messages": messages}
+
+
 def soe_chain_position(problem_text: str) -> str:
     """For middle placement: where the queried chain sits relative to the filler.
 
