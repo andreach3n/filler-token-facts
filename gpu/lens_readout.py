@@ -31,8 +31,10 @@ from pathlib import Path
 import numpy as np
 import torch
 
-STATES = [Path("/workspace/states"), Path("/root/states2")]  # the volume quota filled mid-run; later files are local
-OUT = Path("/root/readouts")
+import os
+
+STATES = [Path(d) for d in os.getenv("STATES_DIRS", "/workspace/states:/root/states2").split(":")]
+OUT = Path(os.getenv("READOUTS_DIR", "/root/readouts"))
 HEAD = Path("/root/head.pt")
 LENSES = {
     "logit": None,

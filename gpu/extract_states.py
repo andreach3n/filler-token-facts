@@ -27,13 +27,14 @@ import torch.distributed as dist
 INF = "/dev/shm/models/DeepSeek-V4-Flash/inference"
 ENC = "/dev/shm/models/DeepSeek-V4-Flash/encoding"
 CKPT = "/dev/shm/models/V4F-mp2"
-PROMPTS = Path("/workspace/gpu_prompts_soe300.jsonl")
-DONE_DIRS = [Path("/workspace/states"), Path("/root/states2")]  # the volume quota (~27 GB) filled; new files go local
-OUT = DONE_DIRS[-1]
-HEARTBEAT = Path("/root/heartbeat")  # rewritten after every prompt; monitor.sh watches its age
+PROMPTS = Path(os.getenv("PROMPTS_FILE", "/workspace/gpu_prompts_soe300.jsonl"))
+DONE_DIRS = [Path(d) for d in os.getenv("STATES_DIRS", "/workspace/states:/root/states2").split(":")]
+OUT = DONE_DIRS[-1]  # new files go to the last directory
+HEARTBEAT = Path(os.getenv("HEARTBEAT_FILE", "/root/heartbeat"))  # rewritten after every prompt; monitor.sh watches its age
+DONE_MARKER = Path(os.getenv("DONE_MARKER", "/root/extract.done"))
 KEEP_LAST = 4          # positions at the end of the prompt (the answer is predicted at the last one)
-FIRST_LAYER = 0        # store block outputs from this layer on (all 43)
-MAX_LOCAL_GB = 27  # root disk is 30 GB
+FIRST_LAYER = int(os.getenv("FIRST_LAYER", "0"))  # store block outputs from this layer on
+MAX_LOCAL_GB = float(os.getenv("MAX_LOCAL_GB", "27"))  # root disk is 30 GB
 sys.path[:0] = [INF, ENC]
 from model import Transformer, ModelArgs  # noqa: E402
 from encoding_dsv4 import encode_messages  # noqa: E402
@@ -98,7 +99,7 @@ def answer_token_id(answer):
 
 prompts = [json.loads(line) for line in PROMPTS.read_text().splitlines()]
 order = {"none": 0, "counting": 1, "false": 2, "true": 3}
-prompts.sort(key=lambda p: (order[p["condition"]], p["set"], p["id"]))
+prompts.sort(key=lambda p: (order.get(p["condition"], 9), p["set"], p["id"]))
 OUT.mkdir(parents=True, exist_ok=True)
 
 done = skipped = 0
@@ -109,7 +110,7 @@ for n, spec in enumerate(prompts):
         skipped += 1
         continue
     # disk_usage() reports the whole shared cluster; the quota applies to our own directory.
-    used_gb = shutil.disk_usage("/root").used / 1e9  # local disk, so this is our own usage
+    used_gb = shutil.disk_usage(str(OUT)).used / 1e9
     if used_gb > MAX_LOCAL_GB:  # both ranks see the same number, so both stop
         log(f"STOP: root disk usage {used_gb:.1f} GB is above {MAX_LOCAL_GB} GB")
         break
@@ -161,5 +162,7 @@ for n, spec in enumerate(prompts):
         f"fwd={time.time() - t0:5.1f}s  avg={elapsed / done:5.1f}s/prompt")
 
 log(f"finished: {done} new, {skipped} skipped, {time.time() - t_start:.0f}s")
+if rank == 0:
+    DONE_MARKER.write_text("done\n")
 if world_size > 1:
     dist.destroy_process_group()
