@@ -97,8 +97,9 @@ appear once, the gain disappears: V4 Flash false-once 40.3% vs none 46.7% (−6.
 64.3%; true-once 46.7%. At novel-statement positions the intermediates are weak (y 0.27, answer 0.10 vs 0.92 /
 0.85 repeated), periods carry nothing, and the raw readout before each object predicts the *true* object
 (0.15) rather than the written false one (0.01), whereas the repeated block is simply copied (written object
-1.00). A repeated block acts as a template and a substrate; novel statements are processed as content and
-cost accuracy, more so when false. See `docs/writeup.md` §9.
+1.00). Patching the novel-statement positions with another problem's states swaps the answer only 2–9% of the time
+(vs 77–85% for the repeated block). A repeated block acts as a template and a substrate; novel statements are
+processed as content and cost accuracy, more so when false. See `docs/writeup.md` §9.
 
 ## Design decisions
 

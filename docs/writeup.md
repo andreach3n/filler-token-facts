@@ -271,3 +271,18 @@ statements: the model predicts their words and recalls the true facts, little hi
 lands on them, and accuracy drops, more for false statements than true ones. False statements serve as
 filler only once they have stopped functioning as statements. Since papers 1 and 2 also repeat their
 fillers in every shot, their word-filler gains carry the same qualification.
+
+**Causal test on novel statements** (activation patching, n=100 pairs per cell, correct prompts, same
+design as §4.4):
+
+| Condition | Layers patched | p(A's answer) before → after | p(B's answer) | greedy = B | greedy = A | other |
+|---|---|---|---|---|---|---|
+| false, repeated block (§4.4) | all / late / early | 0.93 → 0.01 / 0.13 / 0.58 | 0.74 / 0.69 / 0.00 | 85% / 77% / 0% | 1 / 13 / 65% | 14 / 10 / 35% |
+| false, seen once | all / late / early | 0.72 → 0.57 / 0.67 / 0.62 | 0.03 / 0.02 / 0.02 | 5% / 3% / 2% | 73 / 90 / 80% | 24 / 9 / 20% |
+| true, seen once | all / late / early | 0.79 → 0.47 / 0.63 / 0.66 | 0.04 / 0.03 / 0.00 | 9% / 6% / 0% | 63 / 79 / 84% | 28 / 15 / 16% |
+
+Self-patches are unchanged. With novel statements, transplanting another problem's statement-position
+states carries almost none of its answer (2–9% swaps vs. 77–85% for the repeated block): the answer
+position no longer reads from those positions. The transplant still perturbs A (p(A) drops by 0.1–0.3,
+"other" answers rise to 15–28%, most for all-layer patches of true statements), which fits the model
+processing the sentences as content: replacing them changes its trajectory without carrying computation.
