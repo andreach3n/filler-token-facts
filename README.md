@@ -90,6 +90,16 @@ Self-patching leaves everything unchanged. The answer position reads its result 
 states at the statement positions; false statements are used as a computational substrate the same
 way counting filler is.
 
+## Follow-up: statements seen once
+
+With a different statement set in each few-shot example (3-shot, `--unique`), so the target's statements
+appear once, the gain disappears: V4 Flash false-once 40.3% vs none 46.7% (−6.3, p=.023) vs false-repeated
+64.3%; true-once 46.7%. At novel-statement positions the intermediates are weak (y 0.27, answer 0.10 vs 0.92 /
+0.85 repeated), periods carry nothing, and the raw readout before each object predicts the *true* object
+(0.15) rather than the written false one (0.01), whereas the repeated block is simply copied (written object
+1.00). A repeated block acts as a template and a substrate; novel statements are processed as content and
+cost accuracy, more so when false. See `docs/writeup.md` §9.
+
 ## Design decisions
 
 - **Placement** follows paper 1: filler sits in the user turn after the question under a `Filler:` label, and every few-shot example carries the same filler. No assistant prefill.

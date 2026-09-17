@@ -225,3 +225,49 @@ Transplanting the late-layer states at the false-statement positions makes the m
 - Repo: `fst/` (tasks, statements, prompts, API runs), `gpu/` (pod setup patches, extraction, lenses, aggregation, patching, monitor), `data/runs/` (all API responses), `results/gpu/` (lens summary, patching results), this document.
 - HF dataset `andreayhchen/filler-token-facts-states`: 1,200 state files (~37 GB), 1,200 readouts (2.3 GB), prompts, logs.
 - Cost: API ≈ $3.50 total; pod ≈ 16 hours of 2× RTX PRO 6000 at ~$3.40–4.20/h ≈ $55–65, of which ~7 hours were idle after two silent failures caused by the volume's ~27 GB quota (fixed by moving outputs to local disk and adding a heartbeat monitor).
+
+## 9. Follow-up: statements seen once (added later on 2026-09-16)
+
+In every prompt above the same statement block appears 11 times (10 shots + target), and the
+readouts showed the model copying it (next-word prediction 1.00 at the top layer; the written
+false object predicted with p = 1.00, the true one never). To separate "statements as content"
+from "a repeated block", a 3-shot run used four disjoint statement sets, one per shot and one for
+the target, so the target's statements appear exactly once (`false-unique`, `true-unique`), next
+to 3-shot repeated-block conditions.
+
+**Accuracy, systems of equations, 300 problems (paired change vs. none):**
+
+| Condition | V4 Flash | V3-0324 |
+|---|---|---|
+| none | 46.7% | 29.0% |
+| counting (repeated) | 66.3% (+19.7) | 41.3% (+12.3) |
+| false, repeated | 64.3% (+17.7) | 36.0% (+7.0) |
+| true, repeated | 63.3% (+16.7) | 39.0% (+10.0) |
+| **false, seen once** | **40.3% (−6.3, p=.023)** | **20.0% (−9.0, p=.004)** |
+| true, seen once | 46.7% (±0.0) | 19.0% (−10.0, p=.001) |
+
+False-once vs false-repeated: −24.0 points on V4 Flash (95% CI −29.6 to −18.4), −16.0 on V3. On V4 Flash,
+true-once beats false-once by +6.3 (p=.007): the first significant truth-value effect, and it appears
+only when the statements are novel.
+
+**Lenses (V4 Flash, layers 24–42, logit lens top-1 at any filler position, correct answers):**
+
+| 3-shot condition | y | 2y | answer | raw p(answer) at best filler position | periods carrying an intermediate (L35) |
+|---|---|---|---|---|---|
+| false, repeated (n=193) | 0.92 | 0.82 | 0.85 | 0.80 | 17% |
+| false, seen once (n=120) | 0.27 | 0.29 | 0.10 | 0.04 | 0.0% |
+| true, seen once (n=141) | 0.70 | 0.45 | 0.19 | 0.11 | 0.0% |
+
+**Truth readout** (raw logit lens at the token before each object, top-1 rate at layer 39): repeated
+false block: written (false) object 0.42, rising to 1.00 at layer 41, true object 0.01. Novel false
+statements: **true object 0.15, written false object 0.01** (true object rising from layer 33).
+Novel true statements: true object 0.47 (0.54 at layer 42). With novel statements the model's factual
+knowledge is active at the statement positions; with the repeated block it only copies.
+
+**Revised conclusion.** A repeated text block, regardless of content, is treated as a template: the
+model does not process it as content, its positions (sentence boundaries above all) become a
+computational substrate, and the answer is read from them. Novel statements are processed as
+statements: the model predicts their words and recalls the true facts, little hidden computation
+lands on them, and accuracy drops, more for false statements than true ones. False statements serve as
+filler only once they have stopped functioning as statements. Since papers 1 and 2 also repeat their
+fillers in every shot, their word-filler gains carry the same qualification.
