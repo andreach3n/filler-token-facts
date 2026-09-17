@@ -27,7 +27,7 @@ import numpy as np
 
 LENSES = ("logit", "jlens", "rlens")
 LENS_MAX_LAYER = {"logit": 42, "jlens": 41, "rlens": 41}
-CONDITIONS = ("none", "counting", "false", "true")
+CONDITIONS = ()  # filled from the data
 KS = (1, 10)
 
 
@@ -132,6 +132,9 @@ def main():
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     rows = load(args.readouts)
+    global CONDITIONS
+    CONDITIONS = tuple(sorted({r["condition"] for r in rows}, key=lambda c: ({"none": 0, "counting": 1, "false": 2, "true": 3}.get(c, 4), c)))
+    filler_conds = tuple(c for c in CONDITIONS if c != "none")
     partners = partner(rows)
     targets = rows[0]["targets"]
     layers = rows[0]["layers"]
@@ -181,11 +184,11 @@ def main():
     print("\n== Residual TOP-1 at ANY filler position, correct answers only: real (chance at that layer) @ best layer")
     for lens in LENSES:
         print(f"  {lens}:")
-        show(f"{lens}/filler/top1/correct", ("counting", "false", "true"), ["x"] + computed)
+        show(f"{lens}/filler/top1/correct", filler_conds, ["x"] + computed)
     print("\n== Residual TOP-10 at ANY filler position, correct answers only")
     for lens in LENSES:
         print(f"  {lens}:")
-        show(f"{lens}/filler/top10/correct", ("counting", "false", "true"), ["x"] + computed)
+        show(f"{lens}/filler/top10/correct", filler_conds, ["x"] + computed)
     print("\n== Residual TOP-1 at the ANSWER position, correct answers only")
     for lens in LENSES:
         print(f"  {lens}:")
@@ -193,14 +196,14 @@ def main():
     print("\n== Same for INCORRECT answers only (filler positions, top-1)")
     for lens in ("logit",):
         real, chance, n = summarize([r for r in rows if not r["correct"]], partners, lens, 1, "filler", False)
-        for c in ("counting", "false", "true"):
+        for c in filler_conds:
             if c in real:
                 print(f"    {c:9s} n={n[c]:3d}  " + "  ".join(f"{t}={real[c][:, targets.index(t)].max():.2f}(ch {chance[c][:, targets.index(t)].max():.2f})" for t in ["x"] + computed))
 
     print("\n== WHERE in the filler (logit lens, top-1, correct only): P(hit) at the last filler token vs best position in the last 24")
     for t in ("y", "c2y", "answer"):
         prof = summary["position_profiles"][f"logit/top1/{t}"]
-        for c in ("counting", "false", "true"):
+        for c in filler_conds:
             if c in prof:
                 m = np.array(prof[c])  # [L, 24]
                 li, pi = np.unravel_index(m.argmax(), m.shape)

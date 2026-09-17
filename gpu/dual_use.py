@@ -98,14 +98,15 @@ def main():
                 joint[cond][l]["read_given_nocomp"].append(read_hit[li][nc].mean())
                 joint[cond][l]["pnext_given_nocomp"].append(pn[li][nc].mean())
 
-        if cond in ("false", "true"):
+        kind = cond.split("-")[0]  # "false-unique" -> "false"
+        if kind in ("false", "true"):
             filler_start = prompt.rfind(spec["filler_text"])
             cursor = 0
             role = np.full(n_fill, "other", dtype=object)
             for pair in sets[meta["set"]]:
-                sentence = pair["false_sentence"] if cond == "false" else pair["true_sentence"]
-                written = pair["false_object"] if cond == "false" else pair["true_object"]
-                alt = pair["true_object"] if cond == "false" else pair["false_object"]
+                sentence = pair["false_sentence"] if kind == "false" else pair["true_sentence"]
+                written = pair["false_object"] if kind == "false" else pair["true_object"]
+                alt = pair["true_object"] if kind == "false" else pair["false_object"]
                 s_off = spec["filler_text"].index(sentence, cursor)
                 cursor = s_off + len(sentence)
                 o_start = filler_start + s_off + sentence.index(written)
@@ -120,8 +121,7 @@ def main():
                     continue
                 k = obj_idx[0] - 1  # the position that predicts the object's first token
                 w_id, a_id = first_id(written), first_id(alt)
-                t_id = a_id if cond == "false" else w_id
-                f_id = w_id if cond == "false" else a_id
+                t_id = a_id if kind == "false" else w_id
                 for li, l in enumerate(layers):
                     top, ps = raw_top[li, k], raw_p[li, k]
                     truth[cond][l]["top1_true"].append(top[0] == t_id)
@@ -144,28 +144,30 @@ def main():
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(out, indent=1))
 
-    show = [20, 25, 30, 33, 35, 37, 39, 41, 42]
+    show = [l for l in (20, 25, 30, 33, 35, 37, 39, 41, 42) if l in layers]
     print(f"prompts (correct only): {dict(n_prompts)}\n")
     print("== READING (raw top-1 == next filler token) vs COMPUTING (residual top-1 in {y, 2y, answer}), mean over filler positions")
-    print("layer  " + "  ".join(f"{c:>17s}" for c in ("counting", "false", "true")))
+    conds = sorted(out["reading"])
+    print("layer  " + "  ".join(f"{c:>24s}" for c in conds))
     for l in show:
-        print(f"{l:5d}  " + "  ".join(f"read {out['reading'][c][l]:.2f} comp {out['computing'][c][l]:.3f}" for c in ("counting", "false", "true")))
+        print(f"{l:5d}  " + "  ".join(f"{c[:8]:8s} read {out['reading'][c][l]:.2f} comp {out['computing'][c][l]:.3f}" for c in conds))
     print("\n== JOINT: P(reading intact) and raw p(next) at positions WITH vs WITHOUT an intermediate present")
-    for c in ("false", "true", "counting"):
+    for c in conds:
         print(f"  {c}:")
-        for l in (30, 33, 35, 37, 39):
+        for l in [l for l in (30, 33, 35, 37, 39) if l in layers]:
             j = out["joint"][c][l]
             print(f"    L{l}: read|comp {j['read_given_comp'] if j['read_given_comp'] is None else round(j['read_given_comp'], 2)}  read|nocomp {round(j['read_given_nocomp'], 2)}"
                   f"   p_next|comp {j['pnext_given_comp'] if j['pnext_given_comp'] is None else round(j['pnext_given_comp'], 2)}  p_next|nocomp {round(j['pnext_given_nocomp'], 2)}")
     print("\n== TRUTH at the token before each object: raw top-1 == TRUE object vs == WRITTEN object (false condition: written is false)")
-    for c in ("false", "true"):
+    for c in sorted(out["truth"]):
         print(f"  {c}:")
         for l in show:
             t = out["truth"][c][l]
             print(f"    L{l}: top1=true {t['top1_true']:.2f}  top1=written {t['top1_written']:.2f}  p(true) {t['p_true']:.2f}  p(written) {t['p_written']:.2f}")
-    print("\n== COMPUTING rate by token role (false statements)")
-    for r in ("object", "period", "other"):
-        print(f"  {r:7s} " + "  ".join(f"L{l}:{out['roles']['false'][r][l]:.3f}" for l in (30, 33, 35, 37, 39)))
+    for c in sorted(out["roles"]):
+        print(f"\n== COMPUTING rate by token role ({c})")
+        for r in ("object", "period", "other"):
+            print(f"  {r:7s} " + "  ".join(f"L{l}:{out['roles'][c][r][l]:.3f}" for l in (30, 33, 35, 37, 39) if l in layers and l in out['roles'][c][r]))
 
 
 if __name__ == "__main__":
